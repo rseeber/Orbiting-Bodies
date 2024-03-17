@@ -14,7 +14,7 @@ public class SpaceKinematics : MonoBehaviour
 
     [SerializeField]
     private GameObject targetPlanet;
-    private List<GameObject> otherPlanets;
+    private List<Planet> otherPlanets;
 
     public Transform destination;
     [HideInInspector] public CompassControl compass;
@@ -145,17 +145,17 @@ public class SpaceKinematics : MonoBehaviour
         //do gravity
         Vector3 gravity = Vector3.zero;
         string test = "";
-        foreach (GameObject p in otherPlanets) {
+        foreach (Planet p in otherPlanets) {
             test += p.name + ", ";
         }
         //iterate through each planet, check gravity, apply gravity if it exceeds threshold
-        foreach (GameObject p in otherPlanets) {
+        foreach (Planet p in otherPlanets) {
             Vector3 otherR = Vector3.zero;
-            Vector3 pGravity = getGravity(p, ref otherR);
+            Vector3 pGravity = getGravity(p.gameObject, ref otherR);
             //Debug.Log("Gravity for " + p.name + " = " + pGravity.magnitude);
             //switch targetPlanets if the new planet has a bigger gravitational pull
             if (pGravity.magnitude > gravity.magnitude && pGravity.magnitude > gravityThreshold) {
-                targetPlanet = p;
+                targetPlanet = p.gameObject;
                 cacheNewPlanet();
             }
             //if we're doing the targetPlanet, we need to actually
