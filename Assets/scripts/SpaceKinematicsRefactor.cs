@@ -13,6 +13,7 @@ public class SpaceKinematicsRefactor : MonoBehaviour
 
 
     [SerializeField] private bool isRocket = false;
+    [SerializeField] private bool isSatellite = false;
     //in Newtons
     [SerializeField] private float thrustPower = 500;
     [SerializeField] private float turnPower = 5;
@@ -30,6 +31,7 @@ public class SpaceKinematicsRefactor : MonoBehaviour
     private List<Planet> planetList = new List<Planet>();
     private GameManagerScript gameManager;
     private Rigidbody rb;
+    private Transform seat;
 
     public Vector3 gravityForce { get; private set; } = Vector3.zero;
 
@@ -40,9 +42,12 @@ public class SpaceKinematicsRefactor : MonoBehaviour
             deactivate();
         }
 
+        //the position of the seat location, used to place the player there during flight
+        seat = transform.Find("seat");
+
         //this is weird, just look up Reflection or PropertyInfo for more details on what this means.
         //essentially it just gets the Vector3.[forward] static property. Ideally, you're putting in stuff like forwardDir = "up" or "down"
-        thrustDir = (Vector3) thrustDir.GetType().GetProperty("up").GetValue(null, null);
+        thrustDir = (Vector3)thrustDir.GetType().GetProperty("up").GetValue(null, null);
 
         fuel = fuelCapacity;
         //first find the gameManager gameObject (it needs the "GameController" tag!), then get the script attached to it
@@ -52,37 +57,47 @@ public class SpaceKinematicsRefactor : MonoBehaviour
     }
 
     void FixedUpdate() {
-        //ROTATION
-        //get inputs
-        float yaw = Input.GetAxis("Horizontal") * turnPower;
-        float pitch = Input.GetAxis("Vertical") * turnPower;
-        float roll = Input.GetAxis("Roll") * turnPower;
-        //intentionally not normalizing this vector, since rotating on two axis would use more thrusters (ie be faster)
-        Vector3 rotation = new Vector3(pitch, roll, yaw) * timeMultiplier;
-
-        rb.AddRelativeTorque(rotation);
-
-        if (rotation.magnitude / turnPower > 0.05) {
-            rb.angularDrag = turningAngularDrag;
+        //let the player get inside
+        if (!active && isRocket && Input.GetButtonDown("Interact")) {
+            activate();
         }
-        else {
-            rb.angularDrag = regularAngularDrag;
+
+        //ROTATION
+        if (active) {
+            //get inputs
+            float yaw = Input.GetAxis("Horizontal") * turnPower;
+            float pitch = Input.GetAxis("Vertical") * turnPower;
+            float roll = Input.GetAxis("Roll") * turnPower;
+            //intentionally not normalizing this vector, since rotating on two axis would use more thrusters (ie be faster)
+            Vector3 rotation = new Vector3(pitch, roll, yaw) * timeMultiplier;
+
+            rb.AddRelativeTorque(rotation);
+
+            if (rotation.magnitude / turnPower > 0.05) {
+                rb.angularDrag = turningAngularDrag;
+            }
+            else {
+                rb.angularDrag = regularAngularDrag;
+            }
         }
 
         //FORCE
         //thrust
         Vector3 netThrustForce = Vector3.zero;
-        //TODO: make the bool based on if they have thrust powers, also make a global variable for what that axis is,
-        //also probably make a check for if they're occupied (astronaught can't thrust if he's controlling his rocket)
-        if (isRocket && fuel > 0) {
-            netThrustForce = findThrust("Thrust", thrustDir);
+        if (active) {
+            //TODO: make the bool based on if they have thrust powers, also make a global variable for what that axis is,
+            //also probably make a check for if they're occupied (astronaught can't thrust if he's controlling his rocket)
+            if (isRocket && fuel > 0) {
+                netThrustForce = findThrust("Thrust", thrustDir);
 
-            //remember to remove fuel (in x1,000 Newton Minutes)
-            if (netThrustForce.magnitude > 5) {
-                //divide by 1,000 to remove in Newtons (not KiloNewtons), divide deltaTime by 60 to remove in seconds (not minutes)
-                fuel -= (netThrustForce.magnitude / 1000) * (Time.deltaTime / 60);
+                //remember to remove fuel (in x1,000 Newton Minutes)
+                if (netThrustForce.magnitude > 5) {
+                    //divide by 1,000 to remove in Newtons (not KiloNewtons), divide deltaTime by 60 to remove in seconds (not minutes)
+                    fuel -= (netThrustForce.magnitude / 1000) * (Time.deltaTime / 60);
+                }
             }
         }
+
         //gravity
         Vector3 gravityForce = getNetGrav(planetList);
 
@@ -131,10 +146,37 @@ public class SpaceKinematicsRefactor : MonoBehaviour
         return netThrustForce;
     }
 
+    public void activate() {
+        Transform player;
+        if ((player = GameObject.FindGameObjectWithTag("Player").GetComponent<Transform>()) == null) {
+            Debug.Log("it's null");
+        }
+
+        active = true;
+        Debug.Log(player.position);
+        Debug.Log(seat.position);
+        //put the player into the seat and freeze movement
+        player.position = seat.position;
+        player.rotation = seat.rotation;
+
+        //the PlayerController also has some stuff to do when they become a pilot instead of walking around
+        player.GetComponent<PlayerController>().becomePilot();
+
+        //make the player a child object of the rocket
+        player.SetParent(seat);
+
+        //re-enable all the cameras
+        foreach (Camera cam in cams) {
+            cam.gameObject.SetActive(true);
+        }
+    }
+
     public void deactivate() {
         active = false;
-        foreach (Camera cam in cams) {
-            cam.gameObject.SetActive(false);
+        if (isRocket || isSatellite) {
+            foreach (Camera cam in cams) {
+                cam.gameObject.SetActive(false);
+            }
         }
     }
 }
