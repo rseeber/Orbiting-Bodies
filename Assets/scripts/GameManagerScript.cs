@@ -6,5 +6,5 @@ public class GameManagerScript : MonoBehaviour
 {
     public float bigG;
 
-    [SerializeField] public List<GameObject> planets;
+    [SerializeField] public List<Planet> planets;
 }
